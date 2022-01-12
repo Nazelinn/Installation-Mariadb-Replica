@@ -1,0 +1,159 @@
+[root@nazelin-test-05 ~]# mysql -V ,
+mysql  Ver 15.1 Distrib 10.1.48-MariaDB, for Linux (x86_64) using readline 5.1
+[root@nazelin-test-05 ~]#  
+​
+vi /etc/yum.repos.d/MariaDB.repo
+[mariadb]
+name = MariaDB
+baseurl = http://yum.mariadb.org/10.1/centos7-amd64
+gpgkey=https://yum.mariadb.org/RPM-GPG-KEY-MariaDB
+gpgcheck=1
+systemctl enable mariadb
+systemctl start mariadb
+systemctl status mysqld
+mysql_secure_installation
+Enter current password for root (enter for none): Enter
+	Set root password? [Y/n] Y
+	Remove anonymous users? [Y/n] Y
+	Disallow root login remotely? [Y/n] n
+	Remove test database and access to it? [Y/n] Y
+	Reload privilege tables now? [Y/n] Y
+#Check firewall
+firewall-cmd --add-port=3306/tcp --zone=public --permanent
+firewall-cmd --relaod
+systemctl status firewalld
+#For Master Node -192.168.53.224
+vim /etc/my.cnf
+[mysqld]
+server_id=1
+log-basename=master
+log-bin=/var/lib/mysql/mysql-bin.log 
+binlog-format=MIXED
+#binlog-do-db=replica_db
+systemctl restart mariadb
+mysql -u root -p
+STOP SLAVE;
+GRANT REPLICATION SLAVE ON *.* TO 'slave_user'@'%' IDENTIFIED BY '123456';
+FLUSH PRIVILEGES;
+FLUSH TABLES WITH READ LOCK;
+SHOW MASTER STATUS;
+mysqldump --all-databases --user=root --password --master-data > /tmp/masterdatabase.sql
+scp /tmp/masterdatabase.sql root@192.168.53.225:/tmp/  --slave node 192.168.53.225
+mysql -u root -p
+UNLOCK TABLES;
+quit mysql
+​
+# FOR SLAVE NODE --192.168.53.225
+vi /etc/yum.repos.d/MariaDB.repo
+[mariadb]
+name = MariaDB
+baseurl = http://yum.mariadb.org/10.1/centos7-amd64
+gpgkey=https://yum.mariadb.org/RPM-GPG-KEY-MariaDB
+gpgcheck=1
+systemctl enable mariadb
+systemctl start mariadb
+systemctl status mysqld
+mysql_secure_installation
+Enter current password for root (enter for none): Enter
+	Set root password? [Y/n] Y
+	Remove anonymous users? [Y/n] Y
+	Disallow root login remotely? [Y/n] n
+	Remove test database and access to it? [Y/n] Y
+	Reload privilege tables now? [Y/n] Y
+#Check firewall
+firewall-cmd --add-port=3306/tcp --zone=public --permanent
+firewall-cmd --relaod
+systemctl status firewalld
+​
+vim /etc/my.cnf
+[mysqld]
+server-id = 2
+#replicate-do-db=replica_db
+relay-log=/var/lib/mysql/relay-log
+mysql -u root -p < /tmp/masterdatabase.sql
+systemctl restart mariadb
+mysql -u root -p
+STOP SLAVE;
+CHANGE MASTER TO MASTER_HOST='192.168.53.224',MASTER_USER='slave_user',MASTER_PASSWORD='123456',MASTER_PORT=3306,MASTER_LOG_FILE='mysql-bin.000001',MASTER_LOG_POS=245,MASTER_CONNECT_RETRY=10;
+    RESET SLAVE;
+	START SLAVE;
+	show slave status\G;
+	MariaDB [(none)]> show slave status\G;
+*************************** 1. row ***************************
+               Slave_IO_State: Waiting for master to send event
+                  Master_Host: 192.168.53.224
+                  Master_User: slave_user
+                  Master_Port: 3306
+                Connect_Retry: 10
+              Master_Log_File: mysql-bin.000001
+          Read_Master_Log_Pos: 876
+               Relay_Log_File: relay-log.000002
+                Relay_Log_Pos: 1164
+        Relay_Master_Log_File: mysql-bin.000001
+             Slave_IO_Running: Yes
+            Slave_SQL_Running: Yes
+              Replicate_Do_DB:
+          Replicate_Ignore_DB:
+           Replicate_Do_Table:
+       Replicate_Ignore_Table:
+      Replicate_Wild_Do_Table:
+  Replicate_Wild_Ignore_Table:
+                   Last_Errno: 0
+                   Last_Error:
+                 Skip_Counter: 0
+          Exec_Master_Log_Pos: 876
+              Relay_Log_Space: 1456
+              Until_Condition: None
+               Until_Log_File:
+                Until_Log_Pos: 0
+           Master_SSL_Allowed: No
+           Master_SSL_CA_File:
+           Master_SSL_CA_Path:
+              Master_SSL_Cert:
+            Master_SSL_Cipher:
+               Master_SSL_Key:
+        Seconds_Behind_Master: 0
+Master_SSL_Verify_Server_Cert: No
+                Last_IO_Errno: 0
+                Last_IO_Error:
+               Last_SQL_Errno: 0
+               Last_SQL_Error:
+  Replicate_Ignore_Server_Ids:
+             Master_Server_Id: 1
+               Master_SSL_Crl:
+           Master_SSL_Crlpath:
+                   Using_Gtid: No
+                  Gtid_IO_Pos:
+      Replicate_Do_Domain_Ids:
+  Replicate_Ignore_Domain_Ids:
+                Parallel_Mode: conservative
+!MASTER_LOG_FILE='mysql-bin.000001' master node da  SHOW MASTER STATUS; denildiğinde File da gelen kısım yazılır.
+​
+#Testin Replication on master
+mysql -u root -p
+create database nazetest ;
+show databases;
+MariaDB [(none)]> show databases;
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| mysql              |
+| nazelintest        |
+| nazetest           |
+| performance_schema |
++--------------------+ 
+​
+# after connect slave and checking
+mysql -u root -p
+MariaDB [(none)]> show databases ;
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| mysql              |
+| nazelintest        |
+| nazetest           |
+| performance_schema |
++--------------------+
+​
