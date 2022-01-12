@@ -22,7 +22,7 @@ Enter current password for root (enter for none): Enter
 firewall-cmd --add-port=3306/tcp --zone=public --permanent
 firewall-cmd --relaod
 systemctl status firewalld
-#For Master Node -192.168.53.224
+#For Master Node -192.168.1.1
 vim /etc/my.cnf
 [mysqld]
 server_id=1
@@ -38,12 +38,12 @@ FLUSH PRIVILEGES;
 FLUSH TABLES WITH READ LOCK;
 SHOW MASTER STATUS;
 mysqldump --all-databases --user=root --password --master-data > /tmp/masterdatabase.sql
-scp /tmp/masterdatabase.sql root@192.168.53.225:/tmp/  --slave node 192.168.53.225
+scp /tmp/masterdatabase.sql root@192.168.1.2:/tmp/  --slave node 192.168.1.1
 mysql -u root -p
 UNLOCK TABLES;
 quit mysql
 ​
-# FOR SLAVE NODE --192.168.53.225
+# FOR SLAVE NODE --192.168.1.2
 vi /etc/yum.repos.d/MariaDB.repo
 [mariadb]
 name = MariaDB
@@ -74,14 +74,14 @@ mysql -u root -p < /tmp/masterdatabase.sql
 systemctl restart mariadb
 mysql -u root -p
 STOP SLAVE;
-CHANGE MASTER TO MASTER_HOST='192.168.53.224',MASTER_USER='slave_user',MASTER_PASSWORD='123456',MASTER_PORT=3306,MASTER_LOG_FILE='mysql-bin.000001',MASTER_LOG_POS=245,MASTER_CONNECT_RETRY=10;
+CHANGE MASTER TO MASTER_HOST='192.168.1.1',MASTER_USER='slave_user',MASTER_PASSWORD='123456',MASTER_PORT=3306,MASTER_LOG_FILE='mysql-bin.000001',MASTER_LOG_POS=245,MASTER_CONNECT_RETRY=10;
     RESET SLAVE;
 	START SLAVE;
 	show slave status\G;
 	MariaDB [(none)]> show slave status\G;
 *************************** 1. row ***************************
                Slave_IO_State: Waiting for master to send event
-                  Master_Host: 192.168.53.224
+                  Master_Host: 192.168.1.1
                   Master_User: slave_user
                   Master_Port: 3306
                 Connect_Retry: 10
